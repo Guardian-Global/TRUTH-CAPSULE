@@ -1,54 +1,51 @@
-import type { Request, Response } from "express";
-import multer from "multer";
+import { Request, Response } from "express";
 import axios from "axios";
-
-// Configure multer for file uploads
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },  // Limit the file size to 10MB
-});
+import FormData from "form-data";
 
 /**
- * Handles IPFS file upload by receiving files from the client
- * and interacting with an IPFS API.
+ * Uploads a file to IPFS using the Infura API.
  */
-export async function uploadToIPFS(req: Request, res: Response): Promise<Response> {
-  upload.single("file")(req, res, async (err: any) => {
-    if (err) {
-      console.error("File upload error:", err);
+export async function uploadFileToIPFS(req: Request, res: Response): Promise<Response> {
+  try {
+    const file = req.file; // Assuming file is being uploaded via a middleware (e.g., multer)
+
+    if (!file) {
       return res.status(400).json({
         status: "error",
-        message: "Failed to upload file",
-        details: err instanceof Error ? err.message : "Unknown error",
+        message: "No file uploaded.",
       });
     }
 
-    try {
-      if (!req.file) {
-        return res.status(400).json({
-          status: "error",
-          message: "No file provided",
-        });
-      }
+    // Create form data to send the file to IPFS
+    const form = new FormData();
+    form.append("file", file.buffer, file.originalname);
 
-      // Sending file to IPFS using a hypothetical IPFS API endpoint
-      const ipfsResponse = await axios.post("https://ipfs.infura.io:5001/api/v0/add", req.file.buffer, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+    // Infura IPFS endpoint
+    const url = `https://ipfs.infura.io:5001/api/v0/add`;
 
+    const headers = {
+      ...form.getHeaders(),
+      Authorization: `Basic ${Buffer.from(`${process.env.INFURA_PROJECT_ID}:${process.env.INFURA_PROJECT_SECRET}`).toString('base64')}`,
+    };
+
+    // Upload to IPFS
+    const response = await axios.post(url, form, { headers });
+
+    // If IPFS responds with success
+    if (response.data && response.data.Hash) {
       return res.status(200).json({
         status: "success",
-        data: ipfsResponse.data, // IPFS response with file details
+        ipfsHash: response.data.Hash,
       });
-    } catch (error: any) {
-      console.error("Error uploading file to IPFS:", error);
-      return res.status(500).json({
-        status: "error",
-        message: "Failed to upload to IPFS",
-        details: error instanceof Error ? error.message : "Unknown error",
-      });
+    } else {
+      throw new Error("Failed to upload file to IPFS.");
     }
-  });
+  } catch (error: any) {
+    console.error("Error uploading file to IPFS:", error);
+    return res.status(500).json({
+      status: "error",
+      message: "Failed to upload file to IPFS.",
+      details: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
 }
