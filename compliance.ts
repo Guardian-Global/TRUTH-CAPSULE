@@ -1,26 +1,35 @@
 import type { Request, Response } from "express";
+import { createClient } from "@supabase/supabase-js";
+
+// Supabase initialization using environment variables
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 /**
- * Gets the compliance status based on some predefined rules or external service.
- * This could integrate with a third-party compliance API.
+ * Get compliance status from Supabase
  */
 export async function getComplianceStatus(req: Request, res: Response): Promise<Response> {
   try {
-    // Logic to fetch compliance status, e.g., checking user's data against compliance rules.
-    const complianceData = {};  // Placeholder for actual compliance logic
+    // Example of fetching data from a compliance table (adjust query as needed)
+    const { data, error } = await supabase
+      .from('compliance')
+      .select('*');
 
-    // Send the response with the compliance data
+    if (error) {
+      throw error;
+    }
+
     return res.status(200).json({
       status: "success",
-      data: complianceData,
+      data: data,
     });
   } catch (error: any) {
     console.error("Error fetching compliance status:", error);
-
-    // Return error message if something goes wrong
     return res.status(500).json({
       status: "error",
-      message: "Failed to retrieve compliance status.",
+      message: "Failed to retrieve compliance status",
       details: error instanceof Error ? error.message : "Unknown error",
     });
   }
